@@ -1,3 +1,4 @@
+import boto3
 import telebot
 from loguru import logger
 import os
@@ -17,7 +18,9 @@ class Bot:
         time.sleep(0.5)
 
         # set the webhook URL
-        self.telegram_bot_client.set_webhook(url=f'{telegram_chat_url}/{token}/', timeout=60)
+        self.telegram_bot_client.set_webhook(url=f'{telegram_chat_url}/'
+                                                 f'{token}/', timeout=60,
+                                             certificate=open("cert.pem", "r"))
 
         logger.info(f'Telegram Bot information\n\n{self.telegram_bot_client.get_me()}')
 
@@ -68,10 +71,54 @@ class Bot:
 class ObjectDetectionBot(Bot):
     def handle_message(self, msg):
         logger.info(f'Incoming message: {msg}')
-
-        if self.is_current_msg_photo(msg):
+        usage_msg = 'Please send a photo to start object detection'
+        if "text" in msg:
+            if msg["text"] == '/start':
+                self.send_text(msg['chat']['id'], 'Welcome to Object '
+                                                  'Detection Bot!\n'
+                                                  f'{usage_msg}')
+            else:
+                self.send_text(msg['chat']['id'], usage_msg)
+        elif self.is_current_msg_photo(msg):
+            self.send_text(msg['chat']['id'],
+                           "Your image is being processed. Please wait...")
             photo_path = self.download_user_photo(msg)
 
-            # TODO upload the photo to S3
+            # upload the photo to S3
+            logger.info(f'Uploading photo to S3: {photo_path}')
+            session = boto3.Session()
+            s3 = session.client('s3', 'us-east-1')
+            bucket_name = os.getenv('BUCKET_NAME')
+            s3.upload_file(photo_path, bucket_name,
+                           f"{os.path.basename(photo_path)}")
+
             # TODO send a job to the SQS queue
-            # TODO send message to the Telegram end-user (e.g. Your image is being processed. Please wait...)
+
+            # send message to the Telegram end-user
+            logger.info(
+                f'Received response from yolo5 service: {response.text}')
+            objects_rows = response.text.split('{\'class\':')
+            msg_to_send = (f"We have found {len(objects_rows) - 1} objects "
+                           f"in the image\n\n")
+            msg_to_send += "Detected Objects:\n"
+            objects = {}
+
+            # first row has no object
+            for row in objects_rows[1:]:
+                object_name = row.split('\'')[1].strip()
+                if object_name in objects:
+                    objects[object_name] += 1
+                else:
+                    objects[object_name] = 1
+
+            for object_name, count in objects.items():
+                if count > 1:
+                    msg_to_send += f'{object_name}s: {count}\n'
+                else:
+                    msg_to_send += f'{object_name}: {count}\n'
+
+            msg_to_send += "\nObject Detection completed!"
+
+            self.send_text(msg['chat']['id'], msg_to_send)
+        else:
+            self.send_text(msg['chat']['id'], usage_msg)
