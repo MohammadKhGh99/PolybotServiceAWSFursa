@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 
@@ -19,21 +20,29 @@ with open("data/coco128.yaml", "r") as stream:
 
 def consume():
     while True:
-        response = sqs_client.receive_message(QueueUrl=queue_name, MaxNumberOfMessages=1, WaitTimeSeconds=5)
+        response = sqs_client.receive_message(QueueUrl=queue_name,
+                                              MaxNumberOfMessages=1,
+                                              WaitTimeSeconds=5)
 
         if 'Messages' in response:
             message = response['Messages'][0]['Body']
             receipt_handle = response['Messages'][0]['ReceiptHandle']
+            logger.info(f"message:   {response['Messages'][0]}")
 
             # Use the ReceiptHandle as a prediction UUID
             prediction_id = response['Messages'][0]['MessageId']
 
             logger.info(f'prediction: {prediction_id}. start processing')
 
-            # Receives a URL parameter representing the image to download from S3
-            img_name = ...  # TODO extract from `message`
-            chat_id = ...  # TODO extract from `message`
-            # download img_name from S3, store the local image path in original_img_path
+            # Receives a URL parameter representing
+            # the image to download from S3
+            message = json.loads(message)
+
+            img_name = message["imgName"]
+            chat_id = message["chat_id"]
+
+            # download img_name from S3,
+            # store the local image path in original_img_path
             try:
                 session = boto3.Session()
                 s3 = session.client('s3', 'us-east-1')
@@ -41,12 +50,15 @@ def consume():
                 s3.download_file(images_bucket, img_name, local_img_path)
             except Exception as e:
                 logger.error(
-                    f'prediction: {prediction_id}. Error downloading image from S3: {e}')
-                return f'prediction: {prediction_id}. Error downloading image from S3: {e}', 404
+                    f'prediction: {prediction_id}. '
+                    f'Error downloading image from S3: {e}')
+                return (f'prediction: {prediction_id}. '
+                        f'Error downloading image from S3: {e}'), 404
 
             original_img_path = local_img_path
 
-            logger.info(f'prediction: {prediction_id}/{original_img_path}. Download img completed')
+            logger.info(f'prediction: {prediction_id}/{original_img_path}. '
+                        f'Download img completed')
 
             # Predicts the objects in the image
             run(
@@ -64,20 +76,25 @@ def consume():
             # The predicted image typically includes bounding boxes drawn
             # around the detected objects, along with class labels
             # and possibly confidence scores.
-            predicted_img_path = Path(f'static/data/{prediction_id}/{original_img_path}')
+            predicted_img_path = Path(f'static/data/{prediction_id}/'
+                                      f'{original_img_path}')
 
             # Uploads the predicted image (predicted_img_path) to S3
             # (be careful not to override the original image).
             try:
                 s3.upload_file(predicted_img_path, images_bucket,
-                               f'{img_name.split(".")[0]}_predicted.{img_name.split(".")[1]}')
+                               f'{img_name.split(".")[0]}_predicted.'
+                               f'{img_name.split(".")[1]}')
             except Exception as e:
                 logger.error(
-                    f'prediction: {prediction_id}. Error uploading image to S3: {e}')
-                return f'prediction: {prediction_id}. Error uploading image to S3: {e}', 404
+                    f'prediction: {prediction_id}. '
+                    f'Error uploading image to S3: {e}')
+                return (f'prediction: {prediction_id}. '
+                        f'Error uploading image to S3: {e}'), 404
 
             # Parse prediction labels and create a summary
-            pred_summary_path = Path(f'static/data/{prediction_id}/labels/{original_img_path.split(".")[0]}.txt')
+            pred_summary_path = Path(f'static/data/{prediction_id}/labels/'
+                                     f'{original_img_path.split(".")[0]}.txt')
             if pred_summary_path.exists():
                 with open(pred_summary_path) as f:
                     labels = f.read().splitlines()
@@ -90,24 +107,40 @@ def consume():
                         'height': float(l[4]),
                     } for l in labels]
 
-                logger.info(f'prediction: {prediction_id}/{original_img_path}. prediction summary:\n\n{labels}')
+                logger.info(f'prediction: {prediction_id}/{original_img_path}.'
+                            f' prediction summary:\n\n{labels}')
 
                 prediction_summary = {
-                    'prediction_id': prediction_id,
-                    'original_img_path': original_img_path,
-                    'predicted_img_path': predicted_img_path,
-                    'labels': labels,
-                    'time': time.time()
+                    'prediction_id': {"S": prediction_id},
+                    'original_img_path': {"S": original_img_path},
+                    'predicted_img_path': {"S": str(predicted_img_path)},
+                    'labels': {"SS": [str(label) for label in labels]},
+                    'time': {"S": str(time.time())}
                 }
 
-                # TODO store the prediction_summary in a DynamoDB table
-                # TODO perform a GET request to Polybot to `/results` endpoint
-                requests.post('http://polybot:8443/results',
-                              params={'predictionId': prediction_id})
+                # store the prediction_summary in a DynamoDB table
+                try:
+                    client = boto3.client('dynamodb', region_name='us-east-1')
+                    response = client.put_item(
+                        TableName='mgh-objects-detection',
+                        Item=prediction_summary
+                    )
+                    logger.info(f'response for storing prediction summary: {response}')
+                except Exception as e:
+                    logger.error(f'prediction: {prediction_id}. Error storing prediction summary: {e}')
+                    return f'prediction: {prediction_id}. Error storing prediction summary: {e}', 404
+
+                # perform a POST request to Polybot to `/results` endpoint
+                requests.post('https://alb.mohammadgh.click:8443/results?'
+                              f'predictionId={prediction_id}')
+
+                logger.info("POST request made to Polybot")
 
             # Del the message from the queue as the job is considered as DONE
             sqs_client.delete_message(QueueUrl=queue_name,
                                       ReceiptHandle=receipt_handle)
+            logger.info(f'prediction: {prediction_id}. '
+                        f'Message deleted from the queue')
 
 
 if __name__ == "__main__":

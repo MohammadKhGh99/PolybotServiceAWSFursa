@@ -18,7 +18,16 @@ jobs:
         run: |
           cd polybot
           
-          # TODO your implementation here....          
+          echo "${{ secrets.CERT_PEM }}" > cert.pem
+          echo "${{ secrets.SSL_PRIVATE_KEY }}" > private.key
+          
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
+
+          IMAGE_NAME=polybot:${{ github.run_number }}
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/$IMAGE_NAME
+          
+          rm cert.pem private.key 
 
   Deploy:
     runs-on: ubuntu-latest

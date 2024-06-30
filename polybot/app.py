@@ -1,5 +1,6 @@
 import flask
 from flask import request
+import json
 import os
 from bot import ObjectDetectionBot
 import boto3
@@ -16,7 +17,7 @@ try:
 except ClientError as e:
     raise e
 
-TELEGRAM_TOKEN = response['SecretString']['TELEGRAM_TOKEN']
+TELEGRAM_TOKEN = json.loads(response['SecretString'])['TELEGRAM_TOKEN']
 TELEGRAM_APP_URL = os.environ['TELEGRAM_APP_URL']
 
 
@@ -51,9 +52,9 @@ def results():
     )
 
     item = table_response['Item']
-    print(f"Item:    {item}")
+    print(item)
     chat_id = prediction_id
-    text_results = ''
+    text_results = item
 
     bot.send_text(chat_id, text_results)
     return 'Ok'

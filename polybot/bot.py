@@ -1,3 +1,4 @@
+import json
 import boto3
 import telebot
 from loguru import logger
@@ -86,39 +87,60 @@ class ObjectDetectionBot(Bot):
 
             # upload the photo to S3
             logger.info(f'Uploading photo to S3: {photo_path}')
-            session = boto3.Session()
-            s3 = session.client('s3', 'us-east-1')
-            bucket_name = os.getenv('BUCKET_NAME')
-            s3.upload_file(photo_path, bucket_name,
-                           f"{os.path.basename(photo_path)}")
+            try:
+                session = boto3.Session()
+                s3 = session.client('s3', 'us-east-1')
+                bucket_name = os.getenv('BUCKET_NAME')
+                s3.upload_file(photo_path, bucket_name,
+                               f"{os.path.basename(photo_path)}")
+                logger.info(f'Photo uploaded to S3: {photo_path}')
+            except Exception as e:
+                logger.error(f'Error uploading image to S3: {e}')
+                self.send_text(msg['chat']['id'],
+                               f'Error uploading image to S3: {e}')
+                return
 
-            # TODO send a job to the SQS queue
+            # send a job to the SQS queue
+            try:
+                logger.info('Sending message to SQS')
+                sqs = boto3.client('sqs', region_name='us-east-1')
+                queue_url = 'https://sqs.us-east-1.amazonaws.com/700935310038/mgh-objects-detection-events'
+                message = {
+                    'imgName': os.path.basename(photo_path),
+                    'chat_id': msg['chat']['id']
+                }
+                sqs.send_message(
+                    QueueUrl=queue_url,
+                    MessageBody=json.dumps(message)
+                )
+                logger.info('message sent to SQS')
+            except Exception as e:
+                logger.error(f'Error sending message to SQS: {e}')
+                self.send_text(msg['chat']['id'],
+                               f'Error sending message to SQS: {e}')
+                return
+            # objects_rows = response.text.split('{\'class\':')
+            # msg_to_send = (f"We have found {len(objects_rows) - 1} objects "
+            #                f"in the image\n\n")
+            # msg_to_send += "Detected Objects:\n"
+            # objects = {}
+            #
+            # # first row has no object
+            # for row in objects_rows[1:]:
+            #     object_name = row.split('\'')[1].strip()
+            #     if object_name in objects:
+            #         objects[object_name] += 1
+            #     else:
+            #         objects[object_name] = 1
+            #
+            # for object_name, count in objects.items():
+            #     if count > 1:
+            #         msg_to_send += f'{object_name}s: {count}\n'
+            #     else:
+            #         msg_to_send += f'{object_name}: {count}\n'
+            #
+            # msg_to_send += "\nObject Detection completed!"
 
-            # send message to the Telegram end-user
-            logger.info(
-                f'Received response from yolo5 service: {response.text}')
-            objects_rows = response.text.split('{\'class\':')
-            msg_to_send = (f"We have found {len(objects_rows) - 1} objects "
-                           f"in the image\n\n")
-            msg_to_send += "Detected Objects:\n"
-            objects = {}
-
-            # first row has no object
-            for row in objects_rows[1:]:
-                object_name = row.split('\'')[1].strip()
-                if object_name in objects:
-                    objects[object_name] += 1
-                else:
-                    objects[object_name] = 1
-
-            for object_name, count in objects.items():
-                if count > 1:
-                    msg_to_send += f'{object_name}s: {count}\n'
-                else:
-                    msg_to_send += f'{object_name}: {count}\n'
-
-            msg_to_send += "\nObject Detection completed!"
-
-            self.send_text(msg['chat']['id'], msg_to_send)
+            # self.send_text(msg['chat']['id'], msg_to_send)
         else:
             self.send_text(msg['chat']['id'], usage_msg)
