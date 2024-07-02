@@ -65,10 +65,7 @@ def results():
         else:
             objects[object_name] = 1
 
-    msg_to_send = f"""
-                    We have found {len(labels)} objects in the image\n\n"
-                    Detected Objects:\n\n
-                   """
+    msg_to_send = f"We have found {len(labels)} objects in the image\n\nDetected Objects:\n\n"
 
     descending_dict = sorted(objects.items(), key=lambda x: x[1], reverse=True)
     for object_name, count in descending_dict:
