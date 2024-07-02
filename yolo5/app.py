@@ -131,8 +131,12 @@ def consume():
                     return f'prediction: {prediction_id}. Error storing prediction summary: {e}', 404
 
                 # perform a POST request to Polybot to `/results` endpoint
-                requests.post('https://alb.mohammadgh.click:8443/results?'
-                              f'predictionId={prediction_id}')
+                params = {
+                    'predictionId': prediction_id,
+                    'chatId': chat_id
+                }
+                requests.post('http://alb.mohammadgh.click/results',
+                              params=params)
 
                 logger.info("POST request made to Polybot")
 

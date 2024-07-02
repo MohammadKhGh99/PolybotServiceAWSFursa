@@ -5,9 +5,9 @@ import os
 from bot import ObjectDetectionBot
 import boto3
 from botocore.exceptions import ClientError
+import ast
 
 app = flask.Flask(__name__)
-
 
 # load TELEGRAM_TOKEN value from Secret Manager
 client = boto3.session.Session().client(service_name="secretsmanager",
@@ -36,6 +36,7 @@ def webhook():
 @app.route(f'/results', methods=['POST'])
 def results():
     prediction_id = request.args.get('predictionId')
+    chat_id = request.args.get('chatId')
 
     # use the prediction_id to retrieve results from DynamoDB and send to the end-user
     # create a DynamoDB resource object
@@ -52,11 +53,33 @@ def results():
     )
 
     item = table_response['Item']
-    print(item)
-    chat_id = prediction_id
-    text_results = item
 
-    bot.send_text(chat_id, text_results)
+    # parsing the results
+    labels = item['labels']
+    objects = {}
+    for label in labels:
+        new_label_dict = ast.literal_eval(label)
+        object_name = new_label_dict['class']
+        if object_name in objects:
+            objects[object_name] += 1
+        else:
+            objects[object_name] = 1
+
+    msg_to_send = f"""
+                    We have found {len(labels)} objects in the image\n\n"
+                    Detected Objects:\n\n
+                   """
+
+    descending_dict = sorted(objects.items(), key=lambda x: x[1], reverse=True)
+    for object_name, count in descending_dict:
+        if count > 1:
+            msg_to_send += f'{object_name}s: {count}\n'
+        else:
+            msg_to_send += f'{object_name}: {count}\n'
+
+    msg_to_send += "\nObject Detection completed!"
+
+    bot.send_text(chat_id, msg_to_send)
     return 'Ok'
 
 
