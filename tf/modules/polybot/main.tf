@@ -20,6 +20,7 @@ resource "aws_instance" "mgh-polybot-tf-instance" {
   iam_instance_profile = aws_iam_instance_profile.mgh-polybot-role-profile.name
   availability_zone = element(var.availability_zones, count.index)
   subnet_id = element(var.subnets, count.index)
+  ami = var.ami_id
 
   user_data = <<-EOF
               #!/bin/bash
@@ -120,15 +121,5 @@ resource "aws_security_group" "mgh-polybot-tf-sg" {
   }
 }
 
-# ami
-data "aws_ami" "ubuntu_ami" {
-  most_recent = true
-  owners      = ["099720109477"]  # Canonical owner ID for Ubuntu AMIs
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-24.04-amd64-server-*"]
-  }
-}
 
 

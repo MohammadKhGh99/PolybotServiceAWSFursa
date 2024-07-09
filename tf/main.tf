@@ -49,7 +49,7 @@ data "aws_ami" "ubuntu_ami" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-24.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
 }
 
@@ -92,11 +92,13 @@ module "alb" {
   }
 
   listeners = {
-    ex-http-https-redirect = {
+    ex-http = {
       port     = 80
       protocol = "HTTP"
       forward = {
         target_group_key = "mgh-polybot-tg"
+        target_group_arn = module.alb.target_groups["ex-instance"].arn
+        type            = "forward"
       }
     }
     ex-https = {
@@ -105,31 +107,32 @@ module "alb" {
       certificate_arn = "arn:aws:acm:us-east-1:700935310038:certificate/8f548d7b-74da-4b0a-b515-17a7b8bc5944"
       forward = {
         target_group_key = "mgh-polybot-tg"
+        target_group_arn = module.alb.target_groups["ex-instance"].arn
+        type            = "forward"
       }
     }
   }
 
   target_groups = {
     ex-instance = {
-      name_prefix      = "h1"
+      target_id = module.mgh-polybot.instance_ids[0]
+      name = "mgh-polybot-tg"
       protocol         = "HTTP"
       port             = 80
       target_type      = "instance"
     }
   }
-
 }
 
-resource "aws_lb_target_group_attachment" "target-group-attach" {
-  # covert a list of instance objects to a map with instance ID as the key, and an instance
-  # object as the value.
-  for_each = {
-    for k, v in module.alb :
-    k => v
-  }
+resource "aws_lb_target_group_attachment" "target-group-attach-0" {
+  target_group_arn = module.alb.target_groups["ex-instance"].arn
+  target_id        = module.mgh-polybot.instance_ids[0]
+  port             = 80
+}
 
-  target_group_arn = module.alb.target_groups[0].arn
-  target_id        = each.value.id
+resource "aws_lb_target_group_attachment" "target-group-attach-1" {
+  target_group_arn = module.alb.target_groups["ex-instance"].arn
+  target_id        = module.mgh-polybot.instance_ids[1]
   port             = 80
 }
 
@@ -190,10 +193,11 @@ module "mgh-polybot" {
   source = "./modules/polybot"
 
   vpc_id = module.mgh-vpc.vpc_id
-  aws_region = var.region
-  polybot-ami = data.aws_ami.ubuntu_ami
-  availability_zone = data.aws_availability_zones.available_azs.names
-  cidr_blocks = ["10.0.1.0/24", "10.0.2.0/24"]
+  availability_zones = data.aws_availability_zones.available_azs.names
+  ami_id = data.aws_ami.ubuntu_ami.id
+  env = var.env
+  instance_region = var.region
+  subnets = var.subnets
 }
 
 resource "aws_sqs_queue" "mgh-sqs-q" {
@@ -203,6 +207,8 @@ resource "aws_sqs_queue" "mgh-sqs-q" {
 resource "aws_dynamodb_table" "mgh-dynamo-db" {
   name = "mgh-objects-detection-db"
   hash_key = "prediction_id"
+  read_capacity = 1
+  write_capacity = 1
 
   attribute {
     name = "prediction_id"

@@ -23,7 +23,6 @@ variable "instance_region" {
 variable "availability_zones" {
   description = "The availability zone to deploy the resources"
   type        = list(string)
-  default     = ["us-east-1a"]  # Default to an AZ, but can be overridden
 }
 
 variable "subnets" {
@@ -36,3 +35,9 @@ variable "env" {
   description = "Deployment environment"
   type        = string
 }
+
+variable "vpc_id" {
+  description = "The ID of the VPC"
+  type        = string
+}
+

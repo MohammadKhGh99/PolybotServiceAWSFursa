@@ -15,7 +15,7 @@ output "security_group_id" {
 
 output "polybot-ami" {
   description = "ID of the EC2 instance AMI"
-  value       = data.aws_ami.ubuntu_ami
+  value       = var.ami_id
 }
 
 # output "s3_bucket_id" {
@@ -45,7 +45,7 @@ output "availability_zones" {
 
 output "region" {
   description = "The region"
-  value       = var.region
+  value       = var.instance_region
 }
 
 output "env" {
