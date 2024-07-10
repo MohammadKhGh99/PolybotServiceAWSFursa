@@ -25,7 +25,7 @@ variable "availability_zones" {
   type        = list(string)
 }
 
-variable "subnets" {
+variable "public_subnets" {
   description = "The subnets"
   type        = list(string)
 #   default     = ["us-east-1a"]
@@ -41,3 +41,22 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "sqs_queue_url" {
+  description = "The SQS queue URL"
+  type        = string
+}
+
+variable "bucket_name" {
+  description = "The S3 bucket name"
+  type        = string
+}
+
+variable "dynamo_db_table" {
+  description = "The DynamoDB table name"
+  type        = string
+}
+
+variable "TF_VAR_botToken" {
+  description = "The bot token"
+  type        = string
+}

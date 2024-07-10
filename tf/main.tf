@@ -59,7 +59,7 @@ module "alb" {
 
   name    = "mgh-polybot-yolo-alb"
   vpc_id  = module.mgh-vpc.vpc_id
-  subnets = var.subnets
+  subnets = var.public_subnets
 
   security_group_ingress_rules = {
     all_http = {
@@ -197,7 +197,7 @@ module "mgh-polybot" {
   ami_id = data.aws_ami.ubuntu_ami.id
   env = var.env
   instance_region = var.region
-  subnets = var.subnets
+  public_subnets = var.public_subnets
 }
 
 resource "aws_sqs_queue" "mgh-sqs-q" {
@@ -216,7 +216,7 @@ resource "aws_dynamodb_table" "mgh-dynamo-db" {
   }
 }
 
-resource "aws_secretsmanager_secret" "mgh-secrets-manager" {
-  name = "mgh-secrets-manager"
-
-}
+# resource "aws_secretsmanager_secret" "mgh-secrets-manager" {
+#   name = "mgh-secrets-manager"
+#
+# }

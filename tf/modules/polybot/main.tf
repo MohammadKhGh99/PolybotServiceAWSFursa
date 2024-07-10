@@ -17,9 +17,9 @@ resource "aws_instance" "mgh-polybot-tf-instance" {
   count           = var.instance_count
   instance_type   = var.instance_type
   security_groups = [aws_security_group.mgh-polybot-tf-sg.id]
-  iam_instance_profile = aws_iam_instance_profile.mgh-polybot-role-profile.name
+  iam_instance_profile = aws_iam_instance_profile.mgh-polybot-role-profile1.name
   availability_zone = element(var.availability_zones, count.index)
-  subnet_id = element(var.subnets, count.index)
+  subnet_id = element(var.public_subnets, count.index)
   ami = var.ami_id
 
   user_data = <<-EOF
@@ -87,14 +87,15 @@ resource "aws_iam_role_policy_attachment" "sqs_full_access" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSQSFullAccess"
 }
 
-resource "aws_iam_instance_profile" "mgh-polybot-role-profile" {
-  name = "mgh-polybot-role-profile"
+resource "aws_iam_instance_profile" "mgh-polybot-role-profile1" {
+  name = "mgh-polybot-role-profile1"
   role = aws_iam_role.mgh-polybot-role.name
 }
 
 resource "aws_security_group" "mgh-polybot-tf-sg" {
   name        = "mgh-polybot-tf-sg"
   description = "Allow SSH and HTTP inbound traffic"
+  vpc_id = var.vpc_id
 
   # ssh
   ingress {
@@ -118,6 +119,13 @@ resource "aws_security_group" "mgh-polybot-tf-sg" {
     to_port = 80
     protocol = "tcp"
     cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 

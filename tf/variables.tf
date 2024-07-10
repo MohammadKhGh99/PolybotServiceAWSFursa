@@ -8,7 +8,7 @@ variable "region" {
    type        = string
 }
 
-variable "subnets" {
+variable "public_subnets" {
   description = "The subnets"
   type        = list(string)
 }
@@ -16,4 +16,9 @@ variable "subnets" {
 variable "availability_zones" {
   description = "The availability zone to deploy the resources"
   type        = list(string)
+}
+
+variable "TF_VAR_botToken" {
+  description = "The bot token"
+  type        = string
 }

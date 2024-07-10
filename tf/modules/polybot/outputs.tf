@@ -30,7 +30,7 @@ output "polybot-ami" {
 
 output "public_subnet_ids" {
   description = "The IDs of the public subnets"
-  value       = var.subnets
+  value       = var.public_subnets
 }
 #
 # output "private_subnet_ids" {
@@ -43,10 +43,10 @@ output "availability_zones" {
   value       = var.availability_zones
 }
 
-output "region" {
-  description = "The region"
-  value       = var.instance_region
-}
+# output "region" {
+#   description = "The region"
+#   value       = var.instance_region
+# }
 
 output "env" {
   description = "The environment"
@@ -73,4 +73,22 @@ output "instance_region" {
   value       = var.instance_region
 }
 
+output "sqs_queue_url" {
+  description = "The SQS queue URL"
+  value = var.sqs_queue_url
+}
 
+output "bucket_name" {
+  description = "The S3 bucket name"
+  value = var.bucket_name
+}
+
+output "dynamo_db_table" {
+  description = "The DynamoDB table name"
+  value = var.dynamo_db_table
+}
+
+output "TF_VAR_botToken" {
+  description = "The bot token"
+  value = var.TF_VAR_botToken
+}
